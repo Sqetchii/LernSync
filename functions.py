@@ -4,7 +4,6 @@ from webdav3.client import Client
 from webdav3.exceptions import WebDavException, ResponseErrorCode
 
 skipables_file = 'skipables.txt'
-
 log = logging.getLogger(__name__)
 
 
