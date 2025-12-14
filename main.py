@@ -15,6 +15,7 @@ host_name = config['webdav']['host_name']
 remote_path = config['webdav']['remote_path']
 local_path = config['webdav']['local_path']
 service = config['webdav']['service']
+use_skipables = config['webdav'].getboolean('use_skipables')
 
 while True:
     username, password = get_credentials(service)
@@ -29,7 +30,7 @@ while True:
         client.webdav.disable_check = True
 
         print('Erfolgreicher Login.')
-        pull_continue(client, remote_path, local_path)
+        pull_continue(client, remote_path, local_path, use_skipables)
         break
     except ResponseErrorCode as e:
         if getattr(e, 'code', None) == 401:
