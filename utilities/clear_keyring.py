@@ -20,12 +20,12 @@ def delete_entry(service: str, username: str):
 
 def main():
     config = configparser.ConfigParser()
-    config.read("../config.ini")
+    config.read('../config.ini')
 
-    service = config["webdav"]["service"]
+    service = config['webdav']['service']
 
     print('Zurücksetzen des Keyrings:')
-    username = input("Username: ")
+    username = input('Username: ')
     delete_entry(service, username)
 
 

@@ -9,12 +9,12 @@ from utilities.clear_keyring import delete_entry
 log = logging.getLogger(__name__)
 
 config = configparser.ConfigParser()
-config.read("config.ini")
+config.read('config.ini')
 
-host_name = config["webdav"]["host_name"]
-remote_path = config["webdav"]["remote_path"]
-local_path = config["webdav"]["local_path"]
-service = config["webdav"]["service"]
+host_name = config['webdav']['host_name']
+remote_path = config['webdav']['remote_path']
+local_path = config['webdav']['local_path']
+service = config['webdav']['service']
 
 while True:
     username, password = get_credentials(service)
