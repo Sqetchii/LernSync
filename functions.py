@@ -21,8 +21,11 @@ skip_set = load_skipables_set(skipables_file)
 def join_remote(base: str, child: str) -> str:
     return base.rstrip('/') + '/' + child.lstrip('/')
 
+def get_extension(path: str) -> str:
+    root, extension = os.path.splitext(path)
+    return extension
 
-def pull_continue(client: Client, remote_dir: str, local_dir: str, use_skipables: bool):
+def pull_continue(client: Client, remote_dir: str, local_dir: str, use_skipables: bool, exclude_extensions: list[str]):
     os.makedirs(local_dir, exist_ok=True)
 
     entries = client.list(remote_dir)
@@ -38,11 +41,15 @@ def pull_continue(client: Client, remote_dir: str, local_dir: str, use_skipables
             continue
 
         remote_path = remote_path = join_remote(remote_dir, name)
+
+        if get_extension(path=remote_path) in exclude_extensions:
+            continue
+
         if remote_path not in skip_set or not use_skipables:
             local_path = os.path.join(local_dir, name.strip('/'))
 
             if name.endswith('/'):
-                pull_continue(client, remote_path, local_path, use_skipables)
+                pull_continue(client, remote_path, local_path, use_skipables, exclude_extensions)
                 continue
 
             try:

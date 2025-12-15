@@ -1,3 +1,4 @@
+import json
 import logging
 import configparser
 from pathlib import Path
@@ -17,6 +18,7 @@ remote_path = config['webdav']['remote_path']
 local_path = config['webdav']['local_path']
 service = config['webdav']['service']
 use_skipables = config['webdav'].getboolean('use_skipables')
+exclude_extensions: list[str] = json.loads(config["webdav"]["exclude_extensions"])
 
 def main():
     if use_skipables:
@@ -38,7 +40,7 @@ def main():
             client.webdav.disable_check = True
 
             print('Erfolgreicher Login.')
-            pull_continue(client, remote_path, local_path, use_skipables)
+            pull_continue(client, remote_path, local_path, use_skipables, exclude_extensions)
             break
         except ResponseErrorCode as e:
             if getattr(e, 'code', None) == 401:
