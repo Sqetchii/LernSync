@@ -1,2 +1,2 @@
 keyring
-webdavclient3
+./libs/webdav-client-python-3
