@@ -1,5 +1,3 @@
 TODO:
-webdav3.client.download_from und download_file Änderungen für alle zugänglich machen (requirements):
-total = int(response.headers['content-length'])
-zu:
-total = int(response.headers.get("content-length", 0))
+last_modified vom WebDAV Server, direkt auf die lokalen Dateien spiegeln
+Datum Vergleichen um überschreiben von neueren Dateien zu verhindern
