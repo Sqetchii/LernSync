@@ -8,6 +8,7 @@ class Datei:
     path: str
     upload_date: datetime.datetime
 
+    # Falls man es irgendwann mal brauchen sollte :)
     def equals(self, other: object) -> bool:
         if not isinstance(other, Datei):
             return False
