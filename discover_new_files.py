@@ -3,11 +3,13 @@ from __future__ import annotations
 import configparser
 import datetime
 from dataclasses import dataclass, field
-from typing import List, Union, Optional
+from typing import List, Union, Optional, Any
 from urllib.parse import unquote, urlsplit, parse_qs
 import html as ihtml
 import re
+
 import requests
+
 from credential_service import get_credentials
 from datei import Datei
 
@@ -72,24 +74,89 @@ class Pinnwand:
         return new_files
 
 
-# === HTTP / JSON-RPC Client ===
-
 JSONRPC_URL = "https://www.lernsax.de/jsonrpc.php"
 PINNWAND_URL = "https://www.lernsax.de/wws/55.php"
 
+class LernSaxError(RuntimeError):
+    pass
 
-def _find_batch_result_item(batch_response: list, method_name: str) -> Optional[dict]:
-    """
-    Sucht im JSON-RPC-Batch die Zeile, deren result.method == method_name ist.
-    (So wie in deinen Postman-Snippets.)
-    """
-    for item in batch_response:
+
+class AuthenticationError(LernSaxError):
+    pass
+
+
+class SessionInvalidError(LernSaxError):
+    pass
+
+
+@dataclass(slots=True)
+class JsonRpcFatal:
+    method: Optional[str]
+    errno: Optional[int]
+    error: Optional[str]
+
+
+def _parse_fatals(batch: Any) -> List[JsonRpcFatal]:
+    fatals: List[JsonRpcFatal] = []
+    if not isinstance(batch, list):
+        return fatals
+
+    for item in batch:
+        if not isinstance(item, dict):
+            continue
+        result = item.get("result")
+        if not isinstance(result, dict):
+            continue
+        if str(result.get("return", "")).upper() != "FATAL":
+            continue
+
+        raw_errno = result.get("errno")
+        try:
+            errno = int(raw_errno)
+        except Exception:
+            errno = None
+
+        fatals.append(
+            JsonRpcFatal(
+                method=result.get("method"),
+                errno=errno,
+                error=result.get("error"),
+            )
+        )
+    return fatals
+
+
+def _find_result_by_method(batch: Any, method_name: str) -> Optional[dict]:
+    if not isinstance(batch, list):
+        return None
+    for item in batch:
         if not isinstance(item, dict):
             continue
         result = item.get("result")
         if isinstance(result, dict) and result.get("method") == method_name:
-            return item
+            return result
     return None
+
+
+def _raise_if_login_failed(batch: Any) -> None:
+    for f in _parse_fatals(batch):
+        if f.errno == 107 or (f.error and "Access denied" in f.error):
+            raise AuthenticationError(f"Login fehlgeschlagen: errno={f.errno}, error={f.error}")
+
+
+def _raise_if_session_invalid(batch: Any) -> None:
+    for f in _parse_fatals(batch):
+        if f.errno == 106 or (f.error and "Session key not valid" in f.error):
+            raise SessionInvalidError(f"Session ungültig: errno={f.errno}, error={f.error}")
+
+
+def _post_jsonrpc(session: requests.Session, headers: dict[str, str], body: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    r = session.post(JSONRPC_URL, headers=headers, json=body, timeout=30)
+    r.raise_for_status()
+    data = r.json()
+    if not isinstance(data, list):
+        raise LernSaxError("Response ist kein Array (kein JSON-RPC Batch?)")
+    return data
 
 
 def request_1_login_and_get_session_id(session: requests.Session, login: str, password: str) -> str:
@@ -116,20 +183,13 @@ def request_1_login_and_get_session_id(session: requests.Session, login: str, pa
         {"jsonrpc": "2.0", "method": "get_information", "id": 5, "params": {}},
     ]
 
-    r = session.post(JSONRPC_URL, headers=headers, json=body, timeout=30)
-    r.raise_for_status()
-    data = r.json()
+    data = _post_jsonrpc(session, headers, body)
+    _raise_if_login_failed(data)
 
-    if not isinstance(data, list):
-        raise RuntimeError("Response ist kein Array (kein JSON-RPC Batch?)")
-
-    info_item = _find_batch_result_item(data, "get_information")
-    if not info_item:
-        raise RuntimeError("Kein get_information-Item gefunden")
-
-    session_id = info_item.get("result", {}).get("session_id")
+    info = _find_result_by_method(data, "get_information")
+    session_id = info.get("session_id") if isinstance(info, dict) else None
     if not isinstance(session_id, str) or not session_id:
-        raise RuntimeError("Kein get_information.result.session_id in der Response gefunden")
+        raise LernSaxError("Kein get_information.result.session_id in der Response gefunden")
 
     return session_id
 
@@ -164,25 +224,18 @@ def request_2_set_session_and_get_autologin_nonce(session: requests.Session, ses
         {"jsonrpc": "2.0", "method": "get_information", "id": 4, "params": {}},
     ]
 
-    r = session.post(JSONRPC_URL, headers=headers, json=body, timeout=30)
-    r.raise_for_status()
-    data = r.json()
+    data = _post_jsonrpc(session, headers, body)
+    _raise_if_session_invalid(data)
 
-    if not isinstance(data, list):
-        raise RuntimeError("Response ist kein Array (kein JSON-RPC Batch?)")
-
-    autologin_item = _find_batch_result_item(data, "get_url_for_autologin")
-    if not autologin_item:
-        raise RuntimeError("Kein get_url_for_autologin Entry gefunden")
-
-    url = autologin_item.get("result", {}).get("url")
+    autologin = _find_result_by_method(data, "get_url_for_autologin")
+    url = autologin.get("url") if isinstance(autologin, dict) else None
     if not isinstance(url, str) or "?" not in url:
-        raise RuntimeError("get_url_for_autologin.result.url fehlt oder ist ungültig")
+        raise LernSaxError("get_url_for_autologin.result.url fehlt oder ist ungültig")
 
     qs = parse_qs(urlsplit(url).query)
     autologin_nonce = (qs.get("autologin_nonce") or [None])[0]
     if not isinstance(autologin_nonce, str) or not autologin_nonce:
-        raise RuntimeError("Kein autologin_nonce in URL gefunden")
+        raise LernSaxError("Kein autologin_nonce in URL gefunden")
 
     return autologin_nonce
 
@@ -207,29 +260,52 @@ def request_3_get_pinnwand_html(session: requests.Session, session_id: str) -> b
 
     r = session.get(PINNWAND_URL, headers=headers, params={"sid": session_id}, timeout=30)
     r.raise_for_status()
+
+    content = r.content
+    if isinstance(content, (bytes, bytearray, memoryview)):
+        text = bytes(content).decode("iso-8859-1", errors="ignore")
+    else:
+        text = ""
+
+    if "Session key not valid" in text:
+        raise SessionInvalidError("Session ungültig (HTML): Session key not valid.")
+
     return r.content
 
 
 def main() -> None:
     config = configparser.ConfigParser()
-    config.read('config.ini', encoding='utf-8')
+    config.read("config.ini", encoding="utf-8")
 
-    service = config['webdav']['service']
+    service = config["webdav"]["service"]
     username, password = get_credentials(service)
 
+    max_relogins = 3
+    relogins = 0
+
+    p = Pinnwand()
+
     with requests.Session() as s:
-        session_id = request_1_login_and_get_session_id(s, username, password)
-        autologin_nonce = request_2_set_session_and_get_autologin_nonce(s, session_id)
+        while True:
+            session_id = request_1_login_and_get_session_id(s, username, password)
 
-        # print("autologin_nonce:", autologin_nonce)
+            try:
+                autologin_nonce = request_2_set_session_and_get_autologin_nonce(s, session_id)
+                # print("autologin_nonce:", autologin_nonce)
 
-        raw_html = request_3_get_pinnwand_html(s, session_id)
+                raw_html = request_3_get_pinnwand_html(s, session_id)
 
-        p = Pinnwand()
-        neu = p.collect_new_files(raw_html)
+                neu = p.collect_new_files(raw_html)
+                for f in neu:
+                    print(f.name, f.path, f.upload_date)
 
-        for f in neu:
-            print(f.name, f.path, f.upload_date)
+                break
+            except SessionInvalidError:
+                relogins += 1
+                if relogins > max_relogins:
+                    raise
+                print("Re-login: ", relogins, '/', max_relogins)
+                continue
 
 
 if __name__ == "__main__":
