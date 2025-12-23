@@ -2,14 +2,17 @@ from __future__ import annotations
 
 import configparser
 import datetime
+import json
+import time
 from dataclasses import dataclass, field
-from typing import List, Union, Optional, Any
+from pathlib import Path
+from typing import List, Union, Optional, Any, Tuple, Set
 from urllib.parse import unquote, urlsplit, parse_qs
 import html as ihtml
 import re
 
 import requests
-import keyring  # pip install keyring
+import keyring
 
 from credential_service import get_credentials
 from datei import Datei
@@ -292,56 +295,119 @@ def save_session_id_to_keyring(service: str, username: str, session_id: str) -> 
     keyring.set_password(_keyring_service_for_lernsax_session(service), username, session_id)
 
 
-def main() -> None:
+FileKey = Tuple[str, str, str]
+
+
+def _file_key(datei: Datei) -> FileKey:
+    return (datei.name, datei.path, datei.upload_date.isoformat())
+
+
+def _last_files_path() -> Path:
+    tmp_dir = Path("tmp")
+    tmp_dir.mkdir(parents=True, exist_ok=True)
+    return tmp_dir / "last_files.jsonl"
+
+
+def load_last_file_keys() -> Set[FileKey]:
+    p = _last_files_path()
+    if not p.exists():
+        return set()
+
+    keys: Set[FileKey] = set()
+    with p.open("r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            obj = json.loads(line)
+            name = obj.get("name")
+            path = obj.get("path")
+            upload_date = obj.get("upload_date")
+            if isinstance(name, str) and isinstance(path, str) and isinstance(upload_date, str):
+                keys.add((name, path, upload_date))
+    return keys
+
+
+def save_last_file_keys(keys: Set[FileKey]) -> None:
+    p = _last_files_path()
+    tmp = p.with_suffix(".tmp")
+    with tmp.open("w", encoding="utf-8") as f:
+        for name, path, upload_date in sorted(keys):
+            f.write(json.dumps({"name": name, "path": path, "upload_date": upload_date}, ensure_ascii=False) + "\n")
+    tmp.replace(p)
+
+
+def fetch_pinnwand_files_once(
+        session: requests.Session,
+        service: str,
+        username: str,
+        password: str,
+        session_id: Optional[str],
+) -> tuple[Optional[str], Optional[str], List[Datei]]:
+    if session_id:
+        autologin_nonce = request_2_set_session_and_get_autologin_nonce(session, session_id)
+        raw_html = request_3_get_pinnwand_html(session, session_id)
+        p = Pinnwand()
+        files = p.collect_new_files(raw_html)
+        return session_id, autologin_nonce, files
+
+    session_id = request_1_login_and_get_session_id(session, username, password)
+    save_session_id_to_keyring(service, username, session_id)
+    autologin_nonce = request_2_set_session_and_get_autologin_nonce(session, session_id)
+    raw_html = request_3_get_pinnwand_html(session, session_id)
+    p = Pinnwand()
+    files = p.collect_new_files(raw_html)
+    return session_id, autologin_nonce, files
+
+
+def run_listener(poll_interval_seconds: int = 30) -> None:
     config = configparser.ConfigParser()
     config.read("config.ini", encoding="utf-8")
 
     service = config["webdav"]["service"]
     username, password = get_credentials(service)
 
-    p = Pinnwand()
+    last_keys = load_last_file_keys()
+    new_files: List[Datei] = []
 
-    max_relogins = 3
-    relogins = 0
+    session_id = load_session_id_from_keyring(service, username)
 
     with requests.Session() as s:
-        session_id = load_session_id_from_keyring(service, username)
-
         while True:
-            if session_id:
-                try:
-                    autologin_nonce = request_2_set_session_and_get_autologin_nonce(s, session_id)
-                    raw_html = request_3_get_pinnwand_html(s, session_id)
-
-                    neu = p.collect_new_files(raw_html)
-                    for f in neu:
-                        print(f.name, f.path, f.upload_date)
-
-                    break
-                except SessionInvalidError:
-                    session_id = None
-
-            session_id = request_1_login_and_get_session_id(s, username, password)
-            save_session_id_to_keyring(service, username, session_id)
-
             try:
-                autologin_nonce = request_2_set_session_and_get_autologin_nonce(s, session_id)
-                # print("autologin_nonce:", autologin_nonce)
-
-                raw_html = request_3_get_pinnwand_html(s, session_id)
-
-                neu = p.collect_new_files(raw_html)
-                for f in neu:
-                    print(f.name, f.path, f.upload_date)
-
-                break
+                session_id, autologin_nonce, files = fetch_pinnwand_files_once(s, service, username, password,
+                                                                               session_id)
             except SessionInvalidError:
-                relogins += 1
-                if relogins > max_relogins:
-                    raise
                 session_id = None
-                continue
+                session_id, autologin_nonce, files = fetch_pinnwand_files_once(s, service, username, password,
+                                                                               session_id)
 
+            current_new: List[Datei] = []
+            for f in files:
+                k = _file_key(f)
+                if k not in last_keys:
+                    current_new.append(f)
+
+            if current_new:
+                for f in current_new:
+                    print(f"NEW FILE: {f.name} | {f.path} | {f.upload_date.isoformat()}")
+                new_files.extend(current_new)
+                for f in current_new:
+                    last_keys.add(_file_key(f))
+                save_last_file_keys(last_keys)
+
+            time.sleep(poll_interval_seconds)
+
+
+def main() -> None:
+    config = configparser.ConfigParser()
+    config.read("config.ini", encoding="utf-8")
+
+    poll_interval_seconds = 30
+    if config.has_section("lernsax") and config.has_option("lernsax", "poll_interval_seconds"):
+        poll_interval_seconds = config.getint("lernsax", "poll_interval_seconds")
+
+    run_listener(poll_interval_seconds=poll_interval_seconds)
 
 if __name__ == "__main__":
     main()
