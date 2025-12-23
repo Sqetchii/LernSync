@@ -7,19 +7,9 @@ from typing import List, Union, Optional
 from urllib.parse import unquote, urlsplit, parse_qs
 import html as ihtml
 import re
-
 import requests
-
 from credential_service import get_credentials
-
-
-# === Dein Datenmodell (wie zuletzt) ===
-
-@dataclass(slots=True)
-class Datei:
-    name: str
-    path: str
-    upload_date: datetime.datetime
+from datei import Datei
 
 
 @dataclass
@@ -69,7 +59,7 @@ class Pinnwand:
                 if not open_group_raw:
                     continue
 
-                path = f"{unquote(open_group_raw)}/{folder.lstrip('/')}"
+                path = f"{unquote(open_group_raw)}/storage/{folder.lstrip('/')}"
                 key = (path, name, upload_date)
                 if key in existing_keys:
                     continue
@@ -231,7 +221,7 @@ def main() -> None:
         session_id = request_1_login_and_get_session_id(s, username, password)
         autologin_nonce = request_2_set_session_and_get_autologin_nonce(s, session_id)
 
-        #print("autologin_nonce:", autologin_nonce)
+        # print("autologin_nonce:", autologin_nonce)
 
         raw_html = request_3_get_pinnwand_html(s, session_id)
 

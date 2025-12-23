@@ -1,2 +1,6 @@
-keyring
+keyring~=25.7.0
 ./libs/webdav-client-python-3
+lxml~=6.0.2
+requests~=2.32.4
+python-dateutil~=2.9.0.post0
+setuptools~=80.9.0
