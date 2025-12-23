@@ -9,6 +9,7 @@ import html as ihtml
 import re
 
 import requests
+import keyring  # pip install keyring
 
 from credential_service import get_credentials
 from datei import Datei
@@ -51,7 +52,7 @@ class Pinnwand:
             fm = folder_re.search(entry_text)
             if not fm:
                 continue
-            folder = fm.group("folder").strip()  # z.B. "/Lernfeld 6/.../Test"
+            folder = fm.group("folder").strip()
 
             for m in link_re.finditer(entry_html):
                 url = m.group("url")
@@ -76,6 +77,10 @@ class Pinnwand:
 
 JSONRPC_URL = "https://www.lernsax.de/jsonrpc.php"
 PINNWAND_URL = "https://www.lernsax.de/wws/55.php"
+
+LOGIN_ERRNO_ACCESS_DENIED = 107
+SESSION_ERRNO_NOT_VALID = 106
+
 
 class LernSaxError(RuntimeError):
     pass
@@ -113,7 +118,7 @@ def _parse_fatals(batch: Any) -> List[JsonRpcFatal]:
         raw_errno = result.get("errno")
         try:
             errno = int(raw_errno)
-        except Exception:
+        except (TypeError, ValueError):
             errno = None
 
         fatals.append(
@@ -140,17 +145,18 @@ def _find_result_by_method(batch: Any, method_name: str) -> Optional[dict]:
 
 def _raise_if_login_failed(batch: Any) -> None:
     for f in _parse_fatals(batch):
-        if f.errno == 107 or (f.error and "Access denied" in f.error):
+        if f.errno == LOGIN_ERRNO_ACCESS_DENIED or (f.error and "Access denied" in f.error):
             raise AuthenticationError(f"Login fehlgeschlagen: errno={f.errno}, error={f.error}")
 
 
 def _raise_if_session_invalid(batch: Any) -> None:
     for f in _parse_fatals(batch):
-        if f.errno == 106 or (f.error and "Session key not valid" in f.error):
+        if f.errno == SESSION_ERRNO_NOT_VALID or (f.error and "Session key not valid" in f.error):
             raise SessionInvalidError(f"Session ungültig: errno={f.errno}, error={f.error}")
 
 
-def _post_jsonrpc(session: requests.Session, headers: dict[str, str], body: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def _post_jsonrpc(session: requests.Session, headers: dict[str, str], body: list[dict[str, Any]]) -> list[
+    dict[str, Any]]:
     r = session.post(JSONRPC_URL, headers=headers, json=body, timeout=30)
     r.raise_for_status()
     data = r.json()
@@ -273,6 +279,19 @@ def request_3_get_pinnwand_html(session: requests.Session, session_id: str) -> b
     return r.content
 
 
+def _keyring_service_for_lernsax_session(service: str) -> str:
+    return f"{service}:lernsax"
+
+
+def load_session_id_from_keyring(service: str, username: str) -> Optional[str]:
+    sid = keyring.get_password(_keyring_service_for_lernsax_session(service), username)
+    return sid if isinstance(sid, str) and sid else None
+
+
+def save_session_id_to_keyring(service: str, username: str, session_id: str) -> None:
+    keyring.set_password(_keyring_service_for_lernsax_session(service), username, session_id)
+
+
 def main() -> None:
     config = configparser.ConfigParser()
     config.read("config.ini", encoding="utf-8")
@@ -280,14 +299,30 @@ def main() -> None:
     service = config["webdav"]["service"]
     username, password = get_credentials(service)
 
+    p = Pinnwand()
+
     max_relogins = 3
     relogins = 0
 
-    p = Pinnwand()
-
     with requests.Session() as s:
+        session_id = load_session_id_from_keyring(service, username)
+
         while True:
+            if session_id:
+                try:
+                    autologin_nonce = request_2_set_session_and_get_autologin_nonce(s, session_id)
+                    raw_html = request_3_get_pinnwand_html(s, session_id)
+
+                    neu = p.collect_new_files(raw_html)
+                    for f in neu:
+                        print(f.name, f.path, f.upload_date)
+
+                    break
+                except SessionInvalidError:
+                    session_id = None
+
             session_id = request_1_login_and_get_session_id(s, username, password)
+            save_session_id_to_keyring(service, username, session_id)
 
             try:
                 autologin_nonce = request_2_set_session_and_get_autologin_nonce(s, session_id)
@@ -304,7 +339,7 @@ def main() -> None:
                 relogins += 1
                 if relogins > max_relogins:
                     raise
-                print("Re-login: ", relogins, '/', max_relogins)
+                session_id = None
                 continue
 
 
