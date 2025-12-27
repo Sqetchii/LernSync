@@ -1,53 +1,57 @@
-import json
+import argparse
 import logging
-import configparser
-from pathlib import Path
-from webdav3.client import Client
-from webdav3.exceptions import ResponseErrorCode
-from credential_service import get_credentials
-from functions import pull_continue
-from utilities.clear_keyring import delete_entry
+import sys
 
-log = logging.getLogger(__name__)
+from src.core.config import Config
+from src.services.sync_service import SyncService
 
-config = configparser.ConfigParser()
-config.read('config.ini', encoding='utf-8')
 
-host_name = config['webdav']['host_name']
-remote_path = config['webdav']['remote_path']
-local_path = config['webdav']['local_path']
-service = config['webdav']['service']
-use_skipables = config['webdav'].getboolean('use_skipables')
-exclude_extensions: list[str] = json.loads(config["webdav"]["exclude_extensions"])
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+
 
 def main():
-    if use_skipables:
-        try:
-            Path('skipables.txt').open('x', encoding='utf-8').close()
-        except FileExistsError:
-            pass
+    parser = argparse.ArgumentParser(
+        description='WebDAV Sync Tool für LernSax',
+        formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    parser.add_argument(
+        '--mode',
+        choices=['listener', 'full-sync'],
+        default='listener',
+        help='Betriebsmodus: listener (automatischer Download neuer Dateien) oder full-sync (vollständiger Sync)'
+    )
+    parser.add_argument(
+        '--config',
+        default='config.ini',
+        help='Pfad zur Konfigurationsdatei (Standard: config.ini)'
+    )
+    
+    args = parser.parse_args()
+    
+    try:
+        config = Config(args.config)
+    except Exception as e:
+        print(f"Fehler beim Laden der Konfiguration: {e}", file=sys.stderr)
+        sys.exit(1)
+    
+    service = SyncService(config)
+    
+    try:
+        if args.mode == 'listener':
+            service.run_listener_mode()
+        elif args.mode == 'full-sync':
+            service.run_full_sync()
+    except KeyboardInterrupt:
+        print("\nBeendet durch Benutzer.")
+        sys.exit(0)
+    except Exception as e:
+        print(f"Unerwarteter Fehler: {e}", file=sys.stderr)
+        logging.exception("Unerwarteter Fehler")
+        sys.exit(1)
 
-    while True:
-        username, password = get_credentials(service)
-
-        options = {
-            'webdav_hostname': f'{host_name}',
-            'webdav_login': f'{username}',
-            'webdav_password': f'{password}'
-        }
-        try:
-            client = Client(options)
-            client.webdav.disable_check = True
-
-            print('Erfolgreicher Login.')
-            pull_continue(client, remote_path, local_path, use_skipables, exclude_extensions)
-            break
-        except ResponseErrorCode as e:
-            if getattr(e, 'code', None) == 401:
-                log.error(f'Fehlercode: {e.code}, Benutzername oder Passwort sind falsch.')
-            else:
-                log.error(f'Fehlercode: {e.code}, Unbekanntes Problem bei der Anmeldung.')
-            delete_entry(service, username)
 
 if __name__ == '__main__':
     main()

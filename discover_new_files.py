@@ -407,6 +407,7 @@ def main() -> None:
     if config.has_section("lernsax") and config.has_option("lernsax", "poll_interval_seconds"):
         poll_interval_seconds = config.getint("lernsax", "poll_interval_seconds")
 
+    print("Listening for new files...")
     run_listener(poll_interval_seconds=poll_interval_seconds)
 
 if __name__ == "__main__":
