@@ -23,20 +23,19 @@ class SyncService:
         self._webdav_client: Optional[WebDavClient] = None
         self._downloader: Optional[WebDavDownloader] = None
     
-    def _ensure_webdav_client(self) -> WebDavClient:
-        if self._webdav_client is None:
-            username, password = self._credential_service.get_credentials()
-            self._webdav_client = WebDavClient(
-                self._config.webdav_host_name,
-                username,
-                password
-            )
-            self._downloader = WebDavDownloader(self._webdav_client.client)
-        return self._webdav_client
+    def _verify_webdav_login(self) -> WebDavClient:
+        username, password = self._credential_service.get_credentials()
+        webdav_client = WebDavClient(
+            self._config.webdav_host_name,
+            username,
+            password
+        )
+        webdav_client.client.info('/')
+        return webdav_client
     
     def _download_file(self, datei: Datei) -> bool:
         if self._downloader is None:
-            self._ensure_webdav_client()
+            return False
         
         remote_path = f"{datei.path.rstrip('/')}/{datei.name}"
         
@@ -57,16 +56,19 @@ class SyncService:
     
     def _on_new_files(self, new_files: list[Datei]) -> None:
         if not self._webdav_client:
-            try:
-                self._ensure_webdav_client()
-            except ResponseErrorCode as e:
-                if getattr(e, 'code', None) == 401:
-                    log.error(f'Fehlercode: {e.code}, Benutzername oder Passwort sind falsch.')
+            while True:
+                try:
+                    webdav_client = self._verify_webdav_login()
+                    self._webdav_client = webdav_client
+                    self._downloader = WebDavDownloader(webdav_client.client)
+                    break
+                except ResponseErrorCode as e:
+                    if getattr(e, 'code', None) == 401:
+                        log.error(f'Fehlercode: {e.code}, Benutzername oder Passwort sind falsch.')
+                    else:
+                        log.error(f'Fehlercode: {e.code}, Unbekanntes Problem bei der Anmeldung.')
                     username, _ = self._credential_service.get_credentials()
                     self._keyring_utils.delete_entry(self._config.service, username)
-                else:
-                    log.error(f'Fehlercode: {e.code}, Unbekanntes Problem bei der Anmeldung.')
-                return
         
         for datei in new_files:
             try:
@@ -75,6 +77,15 @@ class SyncService:
                     print(f"Downloaded: {datei.name}")
                 else:
                     print(f"Failed to download: {datei.name}")
+            except ResponseErrorCode as e:
+                if getattr(e, 'code', None) == 401:
+                    log.error(f'Fehlercode: {e.code}, Benutzername oder Passwort sind falsch.')
+                    self._webdav_client = None
+                    self._downloader = None
+                    username, _ = self._credential_service.get_credentials()
+                    self._keyring_utils.delete_entry(self._config.service, username)
+                else:
+                    log.error(f'Fehlercode: {e.code}, Unbekanntes Problem beim Download.')
             except Exception as e:
                 log.error(f"Fehler beim Download von {datei.name}: {e}")
     
@@ -84,6 +95,22 @@ class SyncService:
                 Path('skipables.txt').open('x', encoding='utf-8').close()
             except FileExistsError:
                 pass
+        
+        while True:
+            try:
+                webdav_client = self._verify_webdav_login()
+                self._webdav_client = webdav_client
+                self._downloader = WebDavDownloader(webdav_client.client)
+                break
+            except ResponseErrorCode as e:
+                if getattr(e, 'code', None) == 401:
+                    log.error(f'Fehlercode: {e.code}, Benutzername oder Passwort sind falsch.')
+                else:
+                    log.error(f'Fehlercode: {e.code}, Unbekanntes Problem bei der Anmeldung.')
+                username, _ = self._credential_service.get_credentials()
+                self._keyring_utils.delete_entry(self._config.service, username)
+        
+        print('Erfolgreicher Login.')
         
         listener = LernSaxListener(
             self._config,
@@ -103,14 +130,9 @@ class SyncService:
         
         while True:
             try:
-                username, password = self._credential_service.get_credentials()
-                webdav_client = WebDavClient(
-                    self._config.webdav_host_name,
-                    username,
-                    password
-                )
-                
+                webdav_client = self._verify_webdav_login()
                 print('Erfolgreicher Login.')
+                
                 downloader = WebDavDownloader(webdav_client.client)
                 downloader.pull_continue(
                     self._config.webdav_remote_path,
