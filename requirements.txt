@@ -4,3 +4,4 @@ lxml~=6.0.2
 requests~=2.32.4
 python-dateutil~=2.9.0.post0
 setuptools~=80.9.0
+colorlog~=6.8.2

@@ -1,4 +1,5 @@
 import json
+import logging
 import time
 from pathlib import Path
 from typing import Set, Tuple, Callable, Optional
@@ -9,6 +10,7 @@ from src.core.credentials import CredentialService
 from src.lernsax.session import LernSaxSession, SessionInvalidError
 from src.models.datei import Datei
 
+log = logging.getLogger(__name__)
 
 FileKey = Tuple[str, str, str]
 
@@ -54,21 +56,21 @@ def save_last_file_keys(keys: Set[FileKey]) -> None:
 
 class LernSaxListener:
     def __init__(
-        self,
-        config: Config,
-        credential_service: CredentialService,
-        on_new_files: Callable[[list[Datei]], None]
+            self,
+            config: Config,
+            credential_service: CredentialService,
+            on_new_files: Callable[[list[Datei]], None]
     ):
         self._config = config
         self._credential_service = credential_service
         self._on_new_files = on_new_files
         self._session_manager = LernSaxSession(config.service)
         self._last_keys = load_last_file_keys()
-    
+
     def run(self, poll_interval_seconds: Optional[int] = None) -> None:
         if poll_interval_seconds is None:
             poll_interval_seconds = self._config.poll_interval_seconds
-        
+
         username, password = self._credential_service.get_credentials()
         session_id = self._session_manager.load_session_id(username)
 
@@ -92,7 +94,8 @@ class LernSaxListener:
 
                 if current_new:
                     for f in current_new:
-                        print(f"NEW FILE: {f.name} | {f.path} | {f.upload_date.isoformat()}")
+                        log.info(
+                            f"Neue Datei gefunden: {f.name} | Pfad: {f.path} | Upload-Datum: {f.upload_date.isoformat()}")
                     self._on_new_files(current_new)
                     for f in current_new:
                         self._last_keys.add(_file_key(f))

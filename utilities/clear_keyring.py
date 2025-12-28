@@ -6,7 +6,24 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 import configparser
 import logging
 import keyring
+import colorlog
 from keyring.errors import PasswordDeleteError, InitError, KeyringError
+
+# Logging-Konfiguration für Utility-Skript
+handler = colorlog.StreamHandler(sys.stdout)
+handler.setFormatter(
+    colorlog.ColoredFormatter(
+        '%(log_color)s%(levelname)-8s%(reset)s %(name)s: %(message)s',
+        log_colors={
+            'DEBUG': 'cyan',
+            'INFO': 'green',
+            'WARNING': 'yellow',
+            'ERROR': 'red',
+            'CRITICAL': 'red,bg_white',
+        }
+    )
+)
+logging.basicConfig(level=logging.INFO, handlers=[handler])
 
 log = logging.getLogger(__name__)
 
@@ -29,7 +46,7 @@ def main():
 
     service = config['webdav']['service']
 
-    print('Zurücksetzen des Keyrings:')
+    log.info('Zurücksetzen des Keyrings')
     username = input('Username: ')
     delete_entry(service, username)
 
