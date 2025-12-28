@@ -66,7 +66,8 @@ class SyncService:
                         conflict_resolution=self._config.conflict_resolution,
                         backup_before_overwrite=self._config.backup_before_overwrite,
                         quarantine_path=self._config.quarantine_path,
-                        mtime_tolerance_seconds=self._config.mtime_tolerance_seconds
+                        mtime_tolerance_seconds=self._config.mtime_tolerance_seconds,
+                        local_base_path=self._config.webdav_local_path
                     )
                     break
                 except ResponseErrorCode as e:
@@ -153,14 +154,17 @@ class SyncService:
                     conflict_resolution=self._config.conflict_resolution,
                     backup_before_overwrite=self._config.backup_before_overwrite,
                     quarantine_path=self._config.quarantine_path,
-                    mtime_tolerance_seconds=self._config.mtime_tolerance_seconds
+                    mtime_tolerance_seconds=self._config.mtime_tolerance_seconds,
+                    local_base_path=self._config.webdav_local_path
                 )
+                log.info(f"Starte Synchronisation von {self._config.webdav_remote_path} nach {self._config.webdav_local_path}")
                 downloader.pull_continue(
                     self._config.webdav_remote_path,
                     self._config.webdav_local_path,
                     self._config.use_skipables,
                     self._config.exclude_extensions
                 )
+                log.info("Synchronisation abgeschlossen")
                 break
             except ResponseErrorCode as e:
                 if getattr(e, 'code', None) == 401:
