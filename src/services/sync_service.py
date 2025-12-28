@@ -60,7 +60,14 @@ class SyncService:
                 try:
                     webdav_client = self._verify_webdav_login()
                     self._webdav_client = webdav_client
-                    self._downloader = WebDavDownloader(webdav_client.client)
+                    self._downloader = WebDavDownloader(
+                        webdav_client.client,
+                        comparison_strategy=self._config.comparison_strategy,
+                        conflict_resolution=self._config.conflict_resolution,
+                        backup_before_overwrite=self._config.backup_before_overwrite,
+                        quarantine_path=self._config.quarantine_path,
+                        mtime_tolerance_seconds=self._config.mtime_tolerance_seconds
+                    )
                     break
                 except ResponseErrorCode as e:
                     if getattr(e, 'code', None) == 401:
@@ -100,7 +107,14 @@ class SyncService:
             try:
                 webdav_client = self._verify_webdav_login()
                 self._webdav_client = webdav_client
-                self._downloader = WebDavDownloader(webdav_client.client)
+                self._downloader = WebDavDownloader(
+                    webdav_client.client,
+                    comparison_strategy=self._config.comparison_strategy,
+                    conflict_resolution=self._config.conflict_resolution,
+                    backup_before_overwrite=self._config.backup_before_overwrite,
+                    quarantine_path=self._config.quarantine_path,
+                    mtime_tolerance_seconds=self._config.mtime_tolerance_seconds
+                )
                 break
             except ResponseErrorCode as e:
                 if getattr(e, 'code', None) == 401:
@@ -133,7 +147,14 @@ class SyncService:
                 webdav_client = self._verify_webdav_login()
                 log.info('Erfolgreicher Login bei WebDAV-Server')
 
-                downloader = WebDavDownloader(webdav_client.client)
+                downloader = WebDavDownloader(
+                    webdav_client.client,
+                    comparison_strategy=self._config.comparison_strategy,
+                    conflict_resolution=self._config.conflict_resolution,
+                    backup_before_overwrite=self._config.backup_before_overwrite,
+                    quarantine_path=self._config.quarantine_path,
+                    mtime_tolerance_seconds=self._config.mtime_tolerance_seconds
+                )
                 downloader.pull_continue(
                     self._config.webdav_remote_path,
                     self._config.webdav_local_path,
