@@ -44,7 +44,7 @@ class FileComparator:
     def __init__(
             self,
             strategy: ComparisonStrategy = ComparisonStrategy.HYBRID,
-            mtime_tolerance_seconds: int = 120
+            mtime_tolerance_seconds: int = 60
     ):
         self.strategy = strategy
         self.mtime_tolerance_seconds = mtime_tolerance_seconds

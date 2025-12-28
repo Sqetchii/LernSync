@@ -36,7 +36,7 @@ class WebDavDownloader:
             conflict_resolution: str = 'overwrite',
             backup_before_overwrite: bool = False,
             quarantine_path: str = 'conflicts',
-            mtime_tolerance_seconds: int = 120
+            mtime_tolerance_seconds: int = 60
     ):
         self._client = client
         self._skipables_file = skipables_file
