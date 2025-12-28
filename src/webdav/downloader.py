@@ -85,8 +85,8 @@ class WebDavDownloader:
             remote_info = self._client.info(remote_path)
         except (ResponseErrorCode, WebDavException) as e:
             log.warning(f"Konnte Remote-Info nicht abrufen für {remote_path}: {e}")
-            # Fallback: einfach herunterladen ohne mtime-Synchronisation
-            return self._perform_download(remote_path, local_path, None)
+            # Fallback: einfach herunterladen ohne mtime-Synchronisation (kein Konflikt, da keine lokale Datei)
+            return self._perform_download(remote_path, local_path, None, conflict_handled=False)
 
         # Vergleich durchführen, wenn lokale Datei existiert
         if local_exists and remote_info:
@@ -113,8 +113,11 @@ class WebDavDownloader:
             if not should_download:
                 return True  # Datei wurde übersprungen, aber das ist erfolgreich
 
-        # Download durchführen
-        return self._perform_download(remote_path, local_path, remote_info)
+            # Download durchführen (mit Konfliktbehandlung)
+            return self._perform_download(remote_path, local_path, remote_info, conflict_handled=True)
+
+        # Download durchführen (ohne Konflikt, da keine lokale Datei existiert)
+        return self._perform_download(remote_path, local_path, remote_info, conflict_handled=False)
 
     def _compare_with_hash(
             self,
@@ -141,7 +144,8 @@ class WebDavDownloader:
 
         return None
 
-    def _perform_download(self, remote_path: str, local_path: str, remote_info: Optional[dict] = None) -> bool:
+    def _perform_download(self, remote_path: str, local_path: str, remote_info: Optional[dict] = None,
+                          conflict_handled: bool = False) -> bool:
         """Führt den eigentlichen Download durch"""
         try:
             log.info(f"Lade Datei herunter: {remote_path} -> {local_path}")
@@ -153,7 +157,8 @@ class WebDavDownloader:
                 self._sync_mtime(local_path, remote_info)
 
             # Bei QUARANTINE-Strategie: Datei nach Download in Quarantäne verschieben
-            if self._conflict_handler.resolution == ConflictResolution.QUARANTINE:
+            # NUR wenn ein Konflikt behandelt wurde (d.h. lokale Datei existierte)
+            if self._conflict_handler.resolution == ConflictResolution.QUARANTINE and conflict_handled:
                 self._conflict_handler.move_to_quarantine_after_download(local_path, remote_path)
 
             return True
@@ -171,7 +176,7 @@ class WebDavDownloader:
     def _sync_mtime(self, local_path: str, remote_info: dict) -> None:
         """
         Setzt die lokale mtime auf die Remote-mtime.
-        
+
         Args:
             local_path: Pfad zur lokalen Datei
             remote_info: Dictionary mit Remote-Metadaten (von client.info())
