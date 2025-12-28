@@ -1,3 +1,2 @@
 TODO:
-- last_modified vom WebDAV Server, direkt auf die lokalen Dateien spiegeln
-Datum Vergleichen um überschreiben von neueren Dateien zu verhindern
+- Wenn es eine Datei noch nicht gibt und man macht fast und quarantine als Bsp. dann funktioniert das ganze falsch
