@@ -1,11 +1,19 @@
 import os
 import logging
-from pathlib import Path
 from typing import Set
 from webdav3.client import Client
 from webdav3.exceptions import WebDavException, ResponseErrorCode
 
 log = logging.getLogger(__name__)
+
+
+def _get_extension(path: str) -> str:
+    _, extension = os.path.splitext(path)
+    return extension
+
+
+def _join_remote(base: str, child: str) -> str:
+    return base.rstrip('/') + '/' + child.lstrip('/')
 
 
 class WebDavDownloader:
@@ -20,16 +28,9 @@ class WebDavDownloader:
                 return {line.strip() for line in f if line.strip()}
         except FileNotFoundError:
             return set()
-    
-    def _join_remote(self, base: str, child: str) -> str:
-        return base.rstrip('/') + '/' + child.lstrip('/')
-    
-    def _get_extension(self, path: str) -> str:
-        _, extension = os.path.splitext(path)
-        return extension
-    
+
     def download_file(self, remote_path: str, local_path: str, exclude_extensions: list[str]) -> bool:
-        if self._get_extension(remote_path) in exclude_extensions:
+        if _get_extension(remote_path) in exclude_extensions:
             return False
         
         os.makedirs(os.path.dirname(local_path) if os.path.dirname(local_path) else '.', exist_ok=True)
@@ -77,9 +78,9 @@ class WebDavDownloader:
             if name_clean == remote_basename:
                 continue
 
-            remote_path = self._join_remote(remote_dir, name)
+            remote_path = _join_remote(remote_dir, name)
 
-            if self._get_extension(path=remote_path) in exclude_extensions:
+            if _get_extension(path=remote_path) in exclude_extensions:
                 continue
 
             if remote_path not in self._skip_set or not use_skipables:

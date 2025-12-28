@@ -14,7 +14,7 @@ FileKey = Tuple[str, str, str]
 
 
 def _file_key(datei: Datei) -> FileKey:
-    return (datei.name, datei.path, datei.upload_date.isoformat())
+    return datei.name, datei.path, datei.upload_date.isoformat()
 
 
 def _last_files_path() -> Path:

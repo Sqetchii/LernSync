@@ -1,14 +1,13 @@
 from __future__ import annotations
 
-import json
 from typing import Optional, Any, List
-from urllib.parse import unquote, urlsplit, parse_qs
-import requests
+from urllib.parse import urlsplit, parse_qs
+
 import keyring
+import requests
 
 from src.lernsax.pinnwand import Pinnwand
 from src.models.datei import Datei
-
 
 JSONRPC_URL = "https://www.lernsax.de/jsonrpc.php"
 PINNWAND_URL = "https://www.lernsax.de/wws/55.php"
