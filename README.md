@@ -38,7 +38,7 @@ Das Tool integriert sich nahtlos in LernSax, nutzt WebDAV für den Dateitransfer
 
 ## Voraussetzungen
 
-- Python 3.8 oder höher
+- Python 3.9 oder höher
 - Zugang zu einem LernSax-Account mit WebDAV-Zugriff
 - Internetverbindung
 
