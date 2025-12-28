@@ -41,7 +41,7 @@ Das Tool integriert sich nahtlos in LernSax, nutzt WebDAV für den Dateitransfer
 - Python 3.9 oder höher
 - Zugang zu einem LernSax-Account mit WebDAV-Zugriff
 - Internetverbindung
-- **⚠️ WICHTIG für Listener-Modus**: Die Option <img width="886" height="126" alt="image" src="https://github.com/user-attachments/assets/899832ef-7627-4b2f-82d2-d293cce88b8b" />
+- **⚠️ WICHTIG für Listener-Modus**: Die Option <img width="886" height="126" alt="image" src="https://github.com/user-attachments/assets/899832ef-7627-4b2f-82d2-d293cce88b8b" /> <br>
  muss im LernSax-Raum aktiviert sein, damit der Listener-Modus funktionieren kann
 
 ## Installation
@@ -126,8 +126,8 @@ poll_interval_seconds = 10
 python main.py
 ```
 
-> **⚠️ Voraussetzung**: Die Option <img width="886" height="126" alt="image" src="https://github.com/user-attachments/assets/2e396923-f3e7-4eca-a1bc-df2a952976af" />
- muss im LernSax-Raum aktiviert sein, damit der Listener-Modus die Pinnwand korrekt überwachen kann. Diese Einstellung finden Sie in den Raum-Einstellungen von LernSax.
+> **⚠️ Voraussetzung**: Die Option <img width="886" height="126" alt="image" src="https://github.com/user-attachments/assets/2e396923-f3e7-4eca-a1bc-df2a952976af" /> <br>
+muss im LernSax-Raum aktiviert sein, damit der Listener-Modus die Pinnwand korrekt überwachen kann. Diese Einstellung finden Sie in den Raum-Einstellungen von LernSax.
 
 **Full-Sync-Modus**:
 ```bash
@@ -306,7 +306,7 @@ Kombiniert beide Ansätze:
 ### Problem: Listener-Modus erkennt keine neuen Dateien
 
 **Lösung:**
-- **WICHTIG**: Stellen Sie sicher, dass die Option <img width="886" height="126" alt="image" src="https://github.com/user-attachments/assets/613b9807-8c27-4364-9591-33716e371021" />
+- **WICHTIG**: Stellen Sie sicher, dass die Option <img width="886" height="126" alt="image" src="https://github.com/user-attachments/assets/613b9807-8c27-4364-9591-33716e371021" /> <br>
  im LernSax-Raum aktiviert ist
 - Diese Einstellung ist erforderlich, damit der Listener-Modus die Pinnwand-Einträge korrekt parsen kann
 - Die Einstellung finden Sie in den Raum-Einstellungen von LernSax
