@@ -41,6 +41,7 @@ Das Tool integriert sich nahtlos in LernSax, nutzt WebDAV für den Dateitransfer
 - Python 3.9 oder höher
 - Zugang zu einem LernSax-Account mit WebDAV-Zugriff
 - Internetverbindung
+- **⚠️ WICHTIG für Listener-Modus**: Die Option **"Bild Anhang als Platzhalter"** muss im LernSax-Raum aktiviert sein, damit der Listener-Modus funktionieren kann
 
 ## Installation
 
@@ -123,6 +124,8 @@ poll_interval_seconds = 10
 ```bash
 python main.py
 ```
+
+> **⚠️ Voraussetzung**: Die Option **"Bild Anhang als Platzhalter"** muss im LernSax-Raum aktiviert sein, damit der Listener-Modus die Pinnwand korrekt überwachen kann. Diese Einstellung finden Sie in den Raum-Einstellungen von LernSax.
 
 **Full-Sync-Modus**:
 ```bash
@@ -297,6 +300,13 @@ Kombiniert beide Ansätze:
 2. Dateiendung ist in `exclude_extensions` aufgelistet
 3. Datei existiert bereits lokal und `conflict_resolution = skip`
 4. Logging-Level auf `DEBUG` setzen für detaillierte Informationen
+
+### Problem: Listener-Modus erkennt keine neuen Dateien
+
+**Lösung:**
+- **WICHTIG**: Stellen Sie sicher, dass die Option **"Bild Anhang als Platzhalter"** im LernSax-Raum aktiviert ist
+- Diese Einstellung ist erforderlich, damit der Listener-Modus die Pinnwand-Einträge korrekt parsen kann
+- Die Einstellung finden Sie in den Raum-Einstellungen von LernSax
 
 ### Problem: Keyring-Fehler
 
